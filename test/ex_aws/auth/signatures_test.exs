@@ -34,7 +34,7 @@ defmodule ExAws.Auth.SignaturesTest do
 
       signature = Signatures.generate_signature_v2("s3", config, datetime, "hello world")
 
-      assert signature == "ptze+Pzp5wrkIxFDLc4TZTuPLuBDORB9Q/DdIOa9QF4="
+      assert signature == "f8TffUgcy9sMw70uXsnqdim8aiw="
     end
   end
 end
