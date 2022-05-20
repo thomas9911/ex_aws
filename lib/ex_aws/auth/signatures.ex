@@ -16,4 +16,10 @@ defmodule ExAws.Auth.Signatures do
     |> hmac_sha256(service)
     |> hmac_sha256("aws4_request")
   end
+
+  def generate_signature_v2(_service, config, _datetime, string_to_sign) do
+    config[:secret_access_key]
+    |> hmac_sha256(string_to_sign)
+    |> Base.encode64()
+  end
 end

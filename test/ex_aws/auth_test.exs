@@ -4,6 +4,7 @@ defmodule ExAws.AuthTest do
   import ExAws.Auth,
     only: [
       headers: 6,
+      headers_v2: 6,
       build_canonical_request: 5
     ]
 
@@ -219,6 +220,34 @@ defmodule ExAws.AuthTest do
       {"Authorization", auth_header} = List.keyfind(headers, "Authorization", 0)
 
       assert String.contains?(auth_header, "x-amz-security-token")
+    end
+  end
+
+  describe "headers_v2/6" do
+    @config ExAws.Config.new(:s3,
+              host: "nyc3.digitaloceanspaces.com",
+              region: "eu-west-1",
+              secret_access_key: "",
+              access_key_id: ""
+            )
+
+    test "Authorization" do
+      assert {:ok, headers} =
+               headers_v2(
+                 :get,
+                 "https://s3-eu-west-1.amazonaws.com/my-bucket",
+                 :s3,
+                 @config,
+                 [
+                   {"X-Amzn-Trace-Id", "1-aaaaaaa-bbbbbbbbbbbbb"},
+                   {"content-type", "application/json"}
+                 ],
+                 _body = ""
+               )
+
+      {"Authorization", auth_header} = List.keyfind(headers, "Authorization", 0)
+
+      assert String.contains?(auth_header, "AWS")
     end
   end
 end

@@ -132,6 +132,38 @@ defmodule ExAws.RequestTest do
              )
   end
 
+  test "Call with signature v2", context do
+    http_method = :get
+    url = "https://examplebucket.s3.amazonaws.com/testing/test.jpeg"
+    service = :s3
+    request_body = ""
+
+    expect(
+      ExAws.Request.HttpMock,
+      :request,
+      fn _method, url, _body, headers, _opts ->
+        {"Authorization", auth_header} = List.keyfind(headers, "Authorization", 0)
+
+        assert String.contains?(auth_header, "AWS")
+        refute String.contains?(auth_header, "AWS4-HMAC-SHA256")
+
+        assert url == "https://examplebucket.s3.amazonaws.com/testing/test.jpeg"
+        {:ok, %{status_code: 200}}
+      end
+    )
+
+    assert {:ok, %{status_code: 200}} ==
+             ExAws.Request.request_and_retry(
+               http_method,
+               url,
+               service,
+               Map.put(context[:config], :s3_auth_version, "2"),
+               context[:headers],
+               request_body,
+               {:attempt, 1}
+             )
+  end
+
   test "ProvisionedThroughputExceededException is retried", context do
     exception =
       "{\"__type\": \"ProvisionedThroughputExceededException\", \"message\": \"Rate exceeded for shard shardId-000000000005 in stream my_stream under account 1234567890.\"}"

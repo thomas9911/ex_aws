@@ -304,4 +304,123 @@ defmodule ExAws.Auth do
       service
     end
   end
+
+  # signature v2
+
+  def headers_v2(http_method, url, :s3, config, headers, body) do
+    datetime = :calendar.universal_time()
+
+    headers = [
+      {"host", URI.parse(url).authority},
+      # Timex.now |> Timex.format!("{WDshort}, {D} {Mshort} {YYYY} {h24}:{m}:{s} {Z}")
+      {"date", Calendar.strftime(DateTime.utc_now(), "%a, %-d %b %Y %H:%M:%S %z")}
+      | headers
+    ]
+
+    auth_header =
+      auth_header_v2(
+        http_method,
+        url,
+        headers,
+        body,
+        "s3",
+        datetime,
+        config
+      )
+
+    {:ok, [{"Authorization", auth_header} | headers]}
+  end
+
+  defp auth_header_v2(http_method, url, headers, body, service, datetime, config) do
+    uri = URI.parse(url)
+    path = uri_encode(uri.path)
+
+    query =
+      if uri.query,
+        do: uri.query |> URI.decode_query() |> Enum.to_list() |> canonical_query_params,
+        else: ""
+
+    signature = signature_v2(http_method, path, query, headers, body, service, datetime, config)
+
+    [
+      "AWS ",
+      "#{config[:access_key_id]}:",
+      signature
+    ]
+    |> IO.iodata_to_binary()
+  end
+
+  defp signature_v2(http_method, path, query, headers, body, service, datetime, config) do
+    request = build_canonical_request_v2(http_method, path, query, headers, body, datetime)
+
+    Signatures.generate_signature_v2(service, config, datetime, request)
+  end
+
+  def build_canonical_request_v2(http_method, path, query, headers, _body, _datetime) do
+    http_method = http_method |> method_string |> String.upcase()
+
+    content_md5 = find_header_value(headers, "content-md5")
+
+    content_type =
+      if http_method == "PUT" do
+        find_header_value(headers, "content-type", "application/octet-stream")
+      else
+        find_header_value(headers, "content-type")
+      end
+
+    date = find_header_value(headers, "date")
+
+    headers = headers |> canonical_headers_v2
+
+    header_string =
+      headers
+      |> Enum.map(fn {k, v} -> "#{k}:#{remove_dup_spaces(to_string(v))}" end)
+      |> Enum.join("\n")
+
+    resource_string = path <> canonical_query(query)
+
+    [
+      http_method,
+      "\n",
+      content_md5,
+      "\n",
+      content_type,
+      "\n",
+      date,
+      "\n",
+      header_string,
+      "\n",
+      resource_string
+    ]
+    |> IO.iodata_to_binary()
+  end
+
+  defp find_header_value(headers, key, default \\ "") do
+    header =
+      Enum.find(headers, fn el ->
+        elem(el, 0) == key
+      end) || {nil, default}
+
+    elem(header, 1)
+  end
+
+  defp canonical_query(""), do: ""
+
+  defp canonical_query(query) do
+    ("?" <> query)
+    |> String.split("&")
+    |> Enum.map(fn chunk ->
+      case chunk |> String.split("=") do
+        [param, ""] -> param
+        [param, value] -> "#{param}=#{value}"
+      end
+    end)
+    |> Enum.join("&")
+  end
+
+  defp canonical_headers_v2(headers) do
+    headers
+    |> Enum.filter(fn {k, _v} -> String.starts_with?(k, "x-amz") end)
+    |> canonical_headers()
+  end
 end
