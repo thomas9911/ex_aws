@@ -18,9 +18,11 @@ defmodule ExAws.Auth.Utils do
   case function_exported?(:crypto, :mac, 4) do
     true ->
       def hmac_sha256(key, data), do: :crypto.mac(:hmac, :sha256, key, data)
+      def hmac_sha(key, data), do: :crypto.mac(:hmac, :sha, key, data)
 
     false ->
       def hmac_sha256(key, data), do: :crypto.hmac(:sha256, key, data)
+      def hmac_sha(key, data), do: :crypto.hmac(:sha, key, data)
   end
 
   def bytes_to_hex(bytes) do
